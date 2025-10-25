@@ -15,7 +15,7 @@ import {
   User as FirebaseUser,
   updateProfile,
 } from "firebase/auth";
-import { auth } from "../firebase/config";
+import { auth } from "../config/firebase-config";
 import {
   createOrUpdateUser,
   updateUserStatus,
@@ -74,6 +74,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     password: string
   ): Promise<void> => {
     try {
+      console.log("🔍 Debug Info:");
+      console.log("   Auth instance:", auth);
+      console.log("   App name:", auth.app.name);
+      console.log("   API Key:", auth.config.apiKey);
+      console.log("   Auth Domain:", auth.config.authDomain);
+      console.log("   Project ID:", auth.app.options.projectId);
+
+      console.log("🔄 Attempting to create user with email:", email);
+
       // Create user with email and password
       const userCredential = await createUserWithEmailAndPassword(
         auth,
@@ -81,10 +90,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         password
       );
 
+      console.log("✅ User created successfully:", userCredential.user.uid);
+
       // Update profile with display name
       await updateProfile(userCredential.user, {
         displayName: name,
       });
+
+      console.log("✅ Profile updated with display name");
 
       // Create user document in Firestore using service
       await createOrUpdateUser(userCredential.user.uid, {
@@ -93,6 +106,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         status: "online",
         photoURL: null,
       });
+
+      console.log("✅ User document created in Firestore");
 
       // Update local user state
       setUser({
@@ -104,6 +119,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log("✅ User signed up successfully");
     } catch (error: any) {
       console.error("❌ Error signing up:", error);
+      console.error("❌ Error code:", error.code);
+      console.error("❌ Error message:", error.message);
+      console.error("❌ Full error:", JSON.stringify(error, null, 2));
+
+      // Provide helpful error message
+      if (error.code === "auth/configuration-not-found") {
+        console.error(
+          "⚠️ IMPORTANT: Email/Password authentication is NOT enabled in Firebase Console!"
+        );
+        console.error(
+          "⚠️ Go to: https://console.firebase.google.com/project/testchat-3839e/authentication/providers"
+        );
+        console.error("⚠️ Enable 'Email/Password' under Sign-in providers");
+      }
+
       throw error;
     }
   };
@@ -111,11 +141,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Login function
   const login = async (email: string, password: string): Promise<void> => {
     try {
+      console.log("🔄 Attempting login with email:", email);
+
       const userCredential = await signInWithEmailAndPassword(
         auth,
         email,
         password
       );
+
+      console.log("✅ Login successful:", userCredential.user.uid);
 
       // Update user status to online using service
       await updateUserStatus(userCredential.user.uid, "online");
@@ -124,6 +158,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log("✅ User logged in successfully");
     } catch (error: any) {
       console.error("❌ Error logging in:", error);
+      console.error("❌ Error code:", error.code);
       throw error;
     }
   };
@@ -131,8 +166,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Sign in anonymously
   const signInAnonymously = async (): Promise<void> => {
     try {
+      console.log("🔄 Attempting anonymous sign in");
+
       const userCredential = await firebaseSignInAnonymously(auth);
       const anonymousName = `Guest${Math.floor(Math.random() * 10000)}`;
+
+      console.log("✅ Anonymous user created:", userCredential.user.uid);
 
       // Update profile with anonymous name
       await updateProfile(userCredential.user, {
@@ -154,6 +193,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log("✅ Anonymous sign in successful");
     } catch (error: any) {
       console.error("❌ Anonymous sign in error:", error);
+      console.error("❌ Error code:", error.code);
+
+      if (error.code === "auth/configuration-not-found") {
+        console.error(
+          "⚠️ Anonymous authentication is NOT enabled in Firebase Console!"
+        );
+        console.error(
+          "⚠️ Go to: https://console.firebase.google.com/project/testchat-3839e/authentication/providers"
+        );
+        console.error("⚠️ Enable 'Anonymous' under Sign-in providers");
+      }
+
       throw error;
     }
   };
@@ -162,6 +213,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = async (): Promise<void> => {
     try {
       if (user) {
+        console.log("🔄 Logging out user:", user.uid);
         // Update status to offline before logout
         await updateUserStatus(user.uid, "offline");
       }
@@ -177,8 +229,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Listen for auth state changes
   useEffect(() => {
+    console.log("🔄 Setting up auth state listener");
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
+        console.log("🔄 Auth state: User logged in -", firebaseUser.uid);
+
         try {
           // Get additional user data from Firestore using service
           const userData = await getUserData(firebaseUser.uid);
@@ -209,6 +265,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUser(formatUser(firebaseUser));
         }
       } else {
+        console.log("🔄 Auth state: User logged out");
         setUser(null);
       }
       setLoading(false);

@@ -22,7 +22,7 @@ import {
   CHATS_COLLECTION,
   MESSAGES_COLLECTION,
   GROUPS_COLLECTION,
-} from "../firebase/config";
+} from "../config/firebase-config";
 
 // ==================== TYPES ====================
 
@@ -752,4 +752,156 @@ export const updateGroupInfo = async (
     console.error("❌ Error updating group info:", error);
     throw error;
   }
+};
+
+// ==================== TYPING INDICATORS ====================
+
+/**
+ * Set typing status for a user in a chat
+ */
+export const setTypingStatus = async (
+  chatId: string,
+  userId: string,
+  isTyping: boolean
+): Promise<void> => {
+  try {
+    const typingRef = doc(firestore, "typing", `${chatId}_${userId}`);
+
+    if (isTyping) {
+      await setDoc(typingRef, {
+        chatId,
+        userId,
+        isTyping: true,
+        timestamp: new Date().toISOString(),
+      });
+    } else {
+      await deleteDoc(typingRef);
+    }
+  } catch (error) {
+    console.error("❌ Error setting typing status:", error);
+    // Don't throw to prevent disrupting user experience
+  }
+};
+
+/**
+ * Subscribe to typing indicators for a chat
+ */
+export const subscribeToTypingIndicators = (
+  chatId: string,
+  callback: (typingUsers: { userId: string; timestamp: string }[]) => void
+) => {
+  const typingRef = collection(firestore, "typing");
+  const q = query(typingRef, where("chatId", "==", chatId));
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const typingUsers: { userId: string; timestamp: string }[] = [];
+      const now = Date.now();
+
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        const typingTime = new Date(data.timestamp).getTime();
+
+        // Only show typing if it's less than 5 seconds old
+        if (now - typingTime < 5000) {
+          typingUsers.push({
+            userId: data.userId,
+            timestamp: data.timestamp,
+          });
+        }
+      });
+
+      callback(typingUsers);
+    },
+    (error) => {
+      console.error("❌ Error subscribing to typing indicators:", error);
+    }
+  );
+};
+
+// ==================== PRESENCE/ONLINE STATUS ====================
+
+/**
+ * Set user presence (online/offline)
+ */
+export const setUserPresence = async (
+  userId: string,
+  isOnline: boolean
+): Promise<void> => {
+  try {
+    const presenceRef = doc(firestore, "presence", userId);
+
+    await setDoc(presenceRef, {
+      userId,
+      isOnline,
+      lastSeen: new Date().toISOString(),
+    });
+
+    // Also update user status
+    await updateUserStatus(userId, isOnline ? "online" : "offline");
+  } catch (error) {
+    console.error("❌ Error setting user presence:", error);
+  }
+};
+
+/**
+ * Subscribe to user presence
+ */
+export const subscribeToUserPresence = (
+  userId: string,
+  callback: (isOnline: boolean, lastSeen: string) => void
+) => {
+  const presenceRef = doc(firestore, "presence", userId);
+
+  return onSnapshot(
+    presenceRef,
+    (doc) => {
+      if (doc.exists()) {
+        const data = doc.data();
+        callback(data.isOnline, data.lastSeen);
+      } else {
+        callback(false, new Date().toISOString());
+      }
+    },
+    (error) => {
+      console.error("❌ Error subscribing to user presence:", error);
+    }
+  );
+};
+
+/**
+ * Subscribe to multiple users' presence
+ */
+export const subscribeToMultipleUserPresence = (
+  userIds: string[],
+  callback: (presenceMap: Record<string, { isOnline: boolean; lastSeen: string }>) => void
+) => {
+  if (userIds.length === 0) {
+    callback({});
+    return () => {};
+  }
+
+  const presenceRef = collection(firestore, "presence");
+  const q = query(presenceRef, where("userId", "in", userIds.slice(0, 10))); // Firestore 'in' limit is 10
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const presenceMap: Record<string, { isOnline: boolean; lastSeen: string }> = {};
+
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        presenceMap[data.userId] = {
+          isOnline: data.isOnline,
+          lastSeen: data.lastSeen,
+        };
+      });
+
+      callback(presenceMap);
+    },
+    (error) => {
+      console.error("❌ Error subscribing to multiple user presence:", error);
+    }
+  );
 };

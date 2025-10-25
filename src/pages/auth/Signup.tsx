@@ -23,9 +23,7 @@ const Signup: React.FC = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -34,7 +32,7 @@ const Signup: React.FC = () => {
     setError("");
 
     // Validation
-    if (!name || !email || !password || !confirmPassword) {
+    if (!name || !email || !password) {
       setError("Please fill in all fields");
       return;
     }
@@ -53,11 +51,6 @@ const Signup: React.FC = () => {
 
     if (password.length < 6) {
       setError("Password must be at least 6 characters long");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
       return;
     }
 
@@ -108,18 +101,8 @@ const Signup: React.FC = () => {
       <Paper
         elevation={24}
         sx={{
-          padding: {
-            xs: 2.5,
-            sm: 3.5,
-            md: 4.5,
-            lg: 5.5,
-          },
-          maxWidth: {
-            xs: "100%",
-            sm: 450,
-            md: 480,
-            lg: 500,
-          },
+          padding: { xs: 2.5, sm: 3.5, md: 4.5, lg: 5.5 },
+          maxWidth: { xs: "100%", sm: 450, md: 480, lg: 500 },
           width: "100%",
           borderRadius: { xs: 2, sm: 3, md: 3 },
           background: "rgba(255, 255, 255, 0.98)",
@@ -211,9 +194,9 @@ const Signup: React.FC = () => {
               mb: { xs: 1, sm: 1.5, md: 1.5 },
               "& .MuiOutlinedInput-root": {
                 borderRadius: 2,
-                fontSize: { xs: "0.9rem", sm: "1rem", md: "1rem" },
+                fontSize: { xs: "0.9rem", sm: "1rem" },
                 "& input": {
-                  padding: { xs: "14px", sm: "16.5px 14px", md: "16.5px 14px" },
+                  padding: { xs: "14px", sm: "16.5px 14px" },
                 },
                 "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
                   borderColor: themeColors.primary,
@@ -221,10 +204,8 @@ const Signup: React.FC = () => {
                 },
               },
               "& .MuiInputLabel-root": {
-                fontSize: { xs: "0.9rem", sm: "1rem", md: "1rem" },
-                "&.Mui-focused": {
-                  color: themeColors.primary,
-                },
+                fontSize: { xs: "0.9rem", sm: "1rem" },
+                "&.Mui-focused": { color: themeColors.primary },
               },
             }}
           />
@@ -243,9 +224,9 @@ const Signup: React.FC = () => {
               mb: { xs: 1, sm: 1.5, md: 1.5 },
               "& .MuiOutlinedInput-root": {
                 borderRadius: 2,
-                fontSize: { xs: "0.9rem", sm: "1rem", md: "1rem" },
+                fontSize: { xs: "0.9rem", sm: "1rem" },
                 "& input": {
-                  padding: { xs: "14px", sm: "16.5px 14px", md: "16.5px 14px" },
+                  padding: { xs: "14px", sm: "16.5px 14px" },
                 },
                 "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
                   borderColor: themeColors.primary,
@@ -253,10 +234,8 @@ const Signup: React.FC = () => {
                 },
               },
               "& .MuiInputLabel-root": {
-                fontSize: { xs: "0.9rem", sm: "1rem", md: "1rem" },
-                "&.Mui-focused": {
-                  color: themeColors.primary,
-                },
+                fontSize: { xs: "0.9rem", sm: "1rem" },
+                "&.Mui-focused": { color: themeColors.primary },
               },
             }}
           />
@@ -286,58 +265,12 @@ const Signup: React.FC = () => {
               ),
             }}
             sx={{
-              mb: { xs: 1, sm: 1.5, md: 1.5 },
-              "& .MuiOutlinedInput-root": {
-                borderRadius: 2,
-                fontSize: { xs: "0.9rem", sm: "1rem", md: "1rem" },
-                "& input": {
-                  padding: { xs: "14px", sm: "16.5px 14px", md: "16.5px 14px" },
-                },
-                "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-                  borderColor: themeColors.primary,
-                  borderWidth: 2,
-                },
-              },
-              "& .MuiInputLabel-root": {
-                fontSize: { xs: "0.9rem", sm: "1rem", md: "1rem" },
-                "&.Mui-focused": {
-                  color: themeColors.primary,
-                },
-              },
-            }}
-          />
-
-          <TextField
-            fullWidth
-            label="Confirm Password"
-            type={showConfirmPassword ? "text" : "password"}
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            margin="normal"
-            variant="outlined"
-            autoComplete="new-password"
-            disabled={loading}
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    edge="end"
-                    size={window.innerWidth < 600 ? "small" : "medium"}
-                    disabled={loading}
-                  >
-                    {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-            sx={{
               mb: { xs: 2, sm: 2.5, md: 3 },
               "& .MuiOutlinedInput-root": {
                 borderRadius: 2,
-                fontSize: { xs: "0.9rem", sm: "1rem", md: "1rem" },
+                fontSize: { xs: "0.9rem", sm: "1rem" },
                 "& input": {
-                  padding: { xs: "14px", sm: "16.5px 14px", md: "16.5px 14px" },
+                  padding: { xs: "14px", sm: "16.5px 14px" },
                 },
                 "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
                   borderColor: themeColors.primary,
@@ -345,10 +278,8 @@ const Signup: React.FC = () => {
                 },
               },
               "& .MuiInputLabel-root": {
-                fontSize: { xs: "0.9rem", sm: "1rem", md: "1rem" },
-                "&.Mui-focused": {
-                  color: themeColors.primary,
-                },
+                fontSize: { xs: "0.9rem", sm: "1rem" },
+                "&.Mui-focused": { color: themeColors.primary },
               },
             }}
           />
@@ -373,9 +304,7 @@ const Signup: React.FC = () => {
                 boxShadow: `0 6px 20px ${themeColors.primary}60`,
                 transform: "translateY(-2px)",
               },
-              "&:active": {
-                transform: "translateY(0px)",
-              },
+              "&:active": { transform: "translateY(0px)" },
               "&:disabled": {
                 background: `linear-gradient(135deg, ${themeColors.primary}80, ${themeColors.secondary}80)`,
               },
@@ -387,12 +316,7 @@ const Signup: React.FC = () => {
         </form>
 
         {/* Login Link */}
-        <Box
-          sx={{
-            textAlign: "center",
-            mt: { xs: 2, sm: 2.5, md: 3 },
-          }}
-        >
+        <Box sx={{ textAlign: "center", mt: { xs: 2, sm: 2.5, md: 3 } }}>
           <Typography
             variant="body2"
             color="text.secondary"
@@ -419,12 +343,7 @@ const Signup: React.FC = () => {
         </Box>
 
         {/* Terms and Privacy */}
-        <Box
-          sx={{
-            textAlign: "center",
-            mt: { xs: 2, sm: 2.5, md: 3 },
-          }}
-        >
+        <Box sx={{ textAlign: "center", mt: { xs: 2, sm: 2.5, md: 3 } }}>
           <Typography
             variant="caption"
             color="text.secondary"
@@ -441,9 +360,7 @@ const Signup: React.FC = () => {
               sx={{
                 color: themeColors.primary,
                 textDecoration: "none",
-                "&:hover": {
-                  textDecoration: "underline",
-                },
+                "&:hover": { textDecoration: "underline" },
               }}
             >
               Terms of Service
@@ -454,9 +371,7 @@ const Signup: React.FC = () => {
               sx={{
                 color: themeColors.primary,
                 textDecoration: "none",
-                "&:hover": {
-                  textDecoration: "underline",
-                },
+                "&:hover": { textDecoration: "underline" },
               }}
             >
               Privacy Policy
