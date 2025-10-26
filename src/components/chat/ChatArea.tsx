@@ -1,24 +1,36 @@
-import React, { useState, KeyboardEvent, ChangeEvent } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import type { ChangeEvent } from "react";
 import {
   Box,
   Paper,
   Typography,
   Avatar,
   IconButton,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
   TextField,
   InputAdornment,
 } from "@mui/material";
 import {
-  Search as SearchIcon,
-  Call as CallIcon,
-  Videocam as VideocamIcon,
-  PersonAdd as PersonAddIcon,
   MoreVert as MoreVertIcon,
   EmojiEmotions as EmojiIcon,
   AttachFile as AttachIcon,
   Image as ImageIcon,
   Send as SendIcon,
+  Info as InfoIcon,
+  DoneAll as DoneAllIcon,
 } from "@mui/icons-material";
+import { MessageBox } from "react-chat-elements";
+import "react-chat-elements/dist/main.css";
+import GroupDetailsDialog from "../dialogs/GroupDetailsDialog";
+import type {
+  Chat as ChatType,
+  UserData,
+} from "../../services/firestoreService";
+import { useThemeContext } from "../../context/ThemeContext";
+import { MessagesSkeleton } from "../common/Loading";
 
 // =====================
 // ✅ Type Definitions
@@ -29,6 +41,7 @@ interface ChatUser {
   avatar?: string;
   initial?: string;
   online?: boolean;
+  type?: "private" | "group";
 }
 
 interface ChatMessage {
@@ -39,12 +52,20 @@ interface ChatMessage {
   images?: string[];
   timestamp: string;
   isOwn?: boolean;
+  read?: boolean;
 }
 
 interface ChatAreaProps {
   selectedChat?: ChatUser | null;
   messages: ChatMessage[];
   onSendMessage: (message: string) => void;
+  onTyping?: (isTyping: boolean) => void;
+  typingIndicator?: string;
+  chatData?: ChatType | null;
+  currentUserId?: string;
+  allUsers?: UserData[];
+  onRefresh?: () => void;
+  isLoadingMessages?: boolean;
 }
 
 // =====================
@@ -54,21 +75,115 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   selectedChat,
   messages,
   onSendMessage,
+  onTyping,
+  typingIndicator,
+  chatData,
+  currentUserId,
+  allUsers,
+  onRefresh,
+  isLoadingMessages = false,
 }) => {
   const [messageInput, setMessageInput] = useState<string>("");
+  const [isTyping, setIsTyping] = useState<boolean>(false);
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [showGroupDetails, setShowGroupDetails] = useState(false);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<any>(null);
+  const { themeColors } = useThemeContext();
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
+
+  // Reset input when chat changes
+  useEffect(() => {
+    setMessageInput("");
+    setIsTyping(false);
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+  }, [selectedChat?.id]);
 
   const handleSendMessage = () => {
-    if (messageInput.trim()) {
-      onSendMessage(messageInput);
+    const trimmedMessage = messageInput.trim();
+    if (trimmedMessage) {
+      console.log("📤 Sending message:", trimmedMessage);
+      onSendMessage(trimmedMessage);
+
+      // Clear input immediately - this is the key fix
       setMessageInput("");
+
+      // Clear typing indicator
+      if (onTyping) {
+        onTyping(false);
+      }
+      setIsTyping(false);
+
+      // Clear any pending typing timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
     }
   };
 
-  const handleKeyPress = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setMessageInput(value);
+
+    // Typing indicator logic
+    if (onTyping && value.trim()) {
+      if (!isTyping) {
+        onTyping(true);
+        setIsTyping(true);
+      }
+
+      // Clear previous timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+
+      // Set new timeout to clear typing indicator after 3 seconds
+      typingTimeoutRef.current = setTimeout(() => {
+        if (onTyping) {
+          onTyping(false);
+        }
+        setIsTyping(false);
+      }, 3000);
+    } else if (onTyping && !value.trim() && isTyping) {
+      onTyping(false);
+      setIsTyping(false);
     }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      if (onTyping && isTyping) {
+        onTyping(false);
+      }
+    };
+  }, [onTyping, isTyping]);
+
+  const handleMenuClick = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleGroupDetailsClick = () => {
+    setShowGroupDetails(true);
+    handleMenuClose();
   };
 
   if (!selectedChat) {
@@ -133,7 +248,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       <Paper
         elevation={0}
         sx={{
-          p: 2,
+          p: { xs: 1.5, md: 2 },
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -143,22 +258,33 @@ const ChatArea: React.FC<ChatAreaProps> = ({
           flexShrink: 0,
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: { xs: 1, md: 2 },
+            ml: { xs: 6, md: 0 },
+          }}
+        >
           <Avatar
             src={selectedChat.avatar}
             sx={{
-              width: 48,
-              height: 48,
+              width: { xs: 40, md: 48 },
+              height: { xs: 40, md: 48 },
               bgcolor: selectedChat.avatar ? "transparent" : "primary.main",
             }}
           >
             {!selectedChat.avatar && selectedChat.initial}
           </Avatar>
           <Box>
-            <Typography variant="h6" fontWeight={600}>
+            <Typography
+              variant="h6"
+              fontWeight={600}
+              sx={{ fontSize: { xs: "1rem", md: "1.25rem" } }}
+            >
               {selectedChat.name}
             </Typography>
-            {selectedChat.online && (
+            {selectedChat.online && selectedChat.type === "private" && (
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                 <Box
                   sx={{
@@ -173,19 +299,46 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                 </Typography>
               </Box>
             )}
+            {selectedChat.type === "group" && chatData && (
+              <Typography variant="caption" color="text.secondary">
+                {chatData.participants.length} members
+              </Typography>
+            )}
           </Box>
         </Box>
+
+        {selectedChat.type === "group" && (
+          <>
+            <IconButton
+              onClick={handleMenuClick}
+              sx={{
+                "&:focus": { outline: "none" },
+              }}
+            >
+              <MoreVertIcon />
+            </IconButton>
+            <Menu
+              anchorEl={anchorEl}
+              open={Boolean(anchorEl)}
+              onClose={handleMenuClose}
+            >
+              <MenuItem onClick={handleGroupDetailsClick}>
+                <ListItemIcon>
+                  <InfoIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText>Group Details</ListItemText>
+              </MenuItem>
+            </Menu>
+          </>
+        )}
       </Paper>
 
       {/* Messages Area */}
       <Box
+        ref={messagesContainerRef}
         sx={{
           flex: 1,
           overflow: "auto",
-          p: 3,
-          display: "flex",
-          flexDirection: "column",
-          gap: 2,
           minHeight: 0,
           "&::-webkit-scrollbar": {
             width: "8px",
@@ -196,184 +349,249 @@ const ChatArea: React.FC<ChatAreaProps> = ({
           },
         }}
       >
-        {messages.map((message) => (
+        {isLoadingMessages ? (
+          <MessagesSkeleton />
+        ) : messages.length === 0 ? (
           <Box
-            key={message.id}
             sx={{
               display: "flex",
-              justifyContent: message.isOwn ? "flex-end" : "flex-start",
-              gap: 1,
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+              p: 3,
             }}
           >
-            {!message.isOwn && (
-              <Avatar
-                src={message.avatar}
-                sx={{ width: 36, height: 36, mt: 1 }}
-              />
-            )}
-            <Box
-              sx={{
-                maxWidth: "60%",
-                display: "flex",
-                flexDirection: "column",
-                gap: 0.5,
-              }}
-            >
-              {!message.isOwn && (
-                <Typography variant="caption" fontWeight={600} sx={{ ml: 1.5 }}>
-                  {message.sender}
-                </Typography>
-              )}
-              <Paper
-                elevation={0}
+            <Typography variant="body2" color="text.secondary">
+              No messages yet. Start the conversation!
+            </Typography>
+          </Box>
+        ) : (
+          <Box sx={{ p: { xs: 2, md: 3 } }}>
+            {messages.map((message) => (
+              <Box
+                key={message.id}
                 sx={{
-                  p: 2,
-                  bgcolor: message.isOwn ? "transparent" : "primary.main",
-                  color: message.isOwn ? "text.primary" : "white",
-                  borderRadius: 3,
-                  border: message.isOwn ? "1px solid" : "none",
-                  borderColor: "divider",
-                  position: "relative",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: message.isOwn ? "flex-end" : "flex-start",
+                  mb: 2,
                 }}
               >
-                <Typography variant="body1">{message.text}</Typography>
-                {message.images && (
-                  <Box sx={{ mt: 1, display: "flex", gap: 1 }}>
-                    {message.images.map((img, idx) => (
-                      <Box
-                        key={idx}
-                        component="img"
-                        src={img}
-                        alt={`attachment-${idx}`}
-                        sx={{
-                          width: 180,
-                          height: 120,
-                          objectFit: "cover",
-                          borderRadius: 2,
-                        }}
-                      />
-                    ))}
-                  </Box>
-                )}
-                <Typography
-                  variant="caption"
-                  sx={{
-                    display: "block",
-                    mt: 0.5,
-                    textAlign: "right",
-                    opacity: 0.7,
-                  }}
-                >
-                  {message.timestamp}
-                </Typography>
-                <IconButton
-                  size="small"
-                  sx={{
-                    position: "absolute",
-                    top: 8,
-                    right: 8,
-                    opacity: 0.7,
-                    color: message.isOwn ? "text.secondary" : "white",
-                  }}
-                >
-                  <MoreVertIcon fontSize="small" />
-                </IconButton>
-              </Paper>
-              {message.isOwn && (
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 0.5,
-                    justifyContent: "flex-end",
-                  }}
-                >
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    sx={{ mr: 1 }}
-                  >
-                    {message.sender}
-                  </Typography>
-                  <Avatar src={message.avatar} sx={{ width: 20, height: 20 }} />
-                </Box>
-              )}
-            </Box>
-            {message.isOwn && (
-              <Avatar
-                src={message.avatar}
-                sx={{ width: 36, height: 36, mt: 1 }}
-              />
+                <MessageBox
+                  id={message.id}
+                  position={message.isOwn ? "right" : "left"}
+                  type={
+                    message.images && message.images.length > 0
+                      ? "photo"
+                      : "text"
+                  }
+                  text={message.text}
+                  title={!message.isOwn ? message.sender : ""}
+                  date={new Date(message.timestamp)}
+                  avatar={message.avatar || ""}
+                  notch={true}
+                  focus={false}
+                  forwarded={false}
+                  replyButton={false}
+                  removeButton={false}
+                  retracted={false}
+                  status="read"
+                  titleColor="#333"
+                  dateString={message.timestamp}
+                  data={
+                    message.images && message.images.length > 0
+                      ? {
+                          uri: message.images[0],
+                          status: { click: false, loading: 0 },
+                        }
+                      : undefined
+                  }
+                />
+                {/* Read Receipt - Double Tick for Own Messages */}
+              </Box>
+            ))}
+
+            {/* Typing Indicator */}
+            {typingIndicator && (
+              <Box sx={{ mt: 1 }}>
+                <MessageBox
+                  id="typing"
+                  position="left"
+                  type="text"
+                  text="..."
+                  title={typingIndicator}
+                  date={new Date()}
+                  className="typing-indicator"
+                  notch={true}
+                  focus={false}
+                  forwarded={false}
+                  replyButton={false}
+                  removeButton={false}
+                  retracted={false}
+                  status="read"
+                  titleColor="#333"
+                  dateString=""
+                />
+              </Box>
             )}
+
+            {/* Scroll anchor */}
+            <div ref={messagesEndRef} />
           </Box>
-        ))}
+        )}
       </Box>
 
       {/* Input Area */}
       <Paper
         elevation={0}
         sx={{
-          p: 2,
+          p: { xs: 1.5, md: 2.5 },
           borderTop: "1px solid",
           borderColor: "divider",
           bgcolor: "background.paper",
           flexShrink: 0,
         }}
       >
-        <Box sx={{ display: "flex", gap: 1, alignItems: "flex-end" }}>
+        <Box
+          sx={{
+            display: "flex",
+            gap: { xs: 1, md: 1.5 },
+            alignItems: "flex-end",
+          }}
+        >
           <TextField
             fullWidth
             multiline
             maxRows={4}
-            placeholder="Enter Message..."
+            placeholder="Type a message..."
             value={messageInput}
-            onChange={(e: ChangeEvent<HTMLInputElement>) =>
-              setMessageInput(e.target.value)
-            }
-            onKeyPress={handleKeyPress}
+            onChange={handleInputChange}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSendMessage();
+              }
+            }}
             sx={{
               "& .MuiOutlinedInput-root": {
                 borderRadius: 3,
-                bgcolor: "#F5F7FB",
+                background: "linear-gradient(135deg, #F8F9FC 0%, #F5F7FB 100%)",
+                border: "2px solid rgba(108, 92, 231, 0.08)",
+                py: 0.5,
+                fontSize: "0.95rem",
+                transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)",
                 "& fieldset": { border: "none" },
+                "&:hover": {
+                  background: "#F5F7FB",
+                  borderColor: "rgba(108, 92, 231, 0.15)",
+                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.06)",
+                },
+                "&.Mui-focused": {
+                  background: "white",
+                  borderColor: "rgba(108, 92, 231, 0.3)",
+                  boxShadow: "0 4px 20px rgba(108, 92, 231, 0.15)",
+                },
+              },
+              "& .MuiInputBase-input": {
+                fontWeight: 500,
+                color: "#2c3e50",
+                "&::placeholder": {
+                  color: "rgba(0, 0, 0, 0.4)",
+                  fontWeight: 400,
+                  opacity: 1,
+                },
               },
             }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <IconButton size="small">
-                    <EmojiIcon />
-                  </IconButton>
-                </InputAdornment>
-              ),
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton size="small">
-                    <AttachIcon />
-                  </IconButton>
-                  <IconButton size="small">
-                    <ImageIcon />
-                  </IconButton>
-                </InputAdornment>
-              ),
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <IconButton
+                      size="small"
+                      sx={{
+                        color: "text.secondary",
+                        "&:hover": { color: themeColors.primary },
+                      }}
+                    >
+                      <EmojiIcon fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      size="small"
+                      sx={{
+                        color: "text.secondary",
+                        "&:hover": { color: themeColors.primary },
+                      }}
+                    >
+                      <AttachIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      sx={{
+                        color: "text.secondary",
+                        "&:hover": { color: themeColors.primary },
+                      }}
+                    >
+                      <ImageIcon fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
             }}
           />
           <IconButton
             onClick={handleSendMessage}
             disabled={!messageInput.trim()}
             sx={{
-              bgcolor: "primary.main",
+              background: "linear-gradient(135deg, #FF6B9D 0%, #FFC371 100%)",
               color: "white",
-              width: 48,
-              height: 48,
-              "&:hover": { bgcolor: "primary.dark" },
-              "&:disabled": { bgcolor: "action.disabledBackground" },
+              width: { xs: 48, md: 52 },
+              height: { xs: 48, md: 52 },
+              borderRadius: 2.5,
+              flexShrink: 0,
+              transition: "all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55)",
+              boxShadow: "0 4px 16px rgba(255, 107, 157, 0.4)",
+              border: "2px solid rgba(255, 255, 255, 0.3)",
+              "&:hover": {
+                background: "linear-gradient(135deg, #FF8FAB 0%, #FFD89B 100%)",
+                transform: "scale(1.12) rotate(-5deg)",
+                boxShadow: "0 8px 24px rgba(255, 107, 157, 0.6)",
+              },
+              "&:active": {
+                transform: "scale(0.92) rotate(0deg)",
+                boxShadow: "0 2px 8px rgba(255, 107, 157, 0.3)",
+              },
+              "&:disabled": {
+                background: "rgba(0, 0, 0, 0.08)",
+                color: "rgba(0, 0, 0, 0.26)",
+                boxShadow: "none",
+                border: "none",
+              },
             }}
           >
-            <SendIcon />
+            <SendIcon sx={{ fontSize: { xs: 20, md: 22 } }} />
           </IconButton>
         </Box>
       </Paper>
+
+      {/* Group Details Dialog */}
+      {selectedChat?.type === "group" &&
+        chatData &&
+        currentUserId &&
+        allUsers && (
+          <GroupDetailsDialog
+            open={showGroupDetails}
+            onClose={() => setShowGroupDetails(false)}
+            chatData={chatData}
+            currentUserId={currentUserId}
+            allUsers={allUsers}
+            onRefresh={onRefresh}
+          />
+        )}
     </Box>
   );
 };

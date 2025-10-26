@@ -1,0 +1,533 @@
+/* React Chat Elements Theme Overrides - Enhanced Modern UI */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+
+/* ==================== MESSAGE BOX ==================== */
+
+.rce-container-mbox {
+  margin: 12px 0 !important;
+  animation: fadeIn 0.3s ease backwards !important;
+}
+
+.rce-mbox {
+  max-width: 70% !important;
+  border-radius: 20px !important;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08) !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  font-family: "Inter", sans-serif !important;
+  padding: 12px 16px !important;
+  position: relative !important;
+}
+
+.rce-mbox::before {
+  content: "";
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 20px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.rce-mbox:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12) !important;
+}
+/* 
+.rce-mbox:hover::before {
+  /* opacity: 1; 
+} */
+
+/* Sent messages (right) - Purple Gradient */
+.rce-mbox-right {
+  background: linear-gradient(135deg, #6c5ce7 0%, #8b7fee 100%) !important;
+  color: white !important;
+  border-bottom-right-radius: 6px !important;
+  border: none !important;
+  box-shadow: 0 3px 15px rgba(108, 92, 231, 0.35) !important;
+}
+
+.rce-mbox-right::before {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.2) 0%,
+    transparent 100%
+  );
+}
+
+.rce-mbox-right .rce-mbox-text {
+  color: white !important;
+  font-weight: 500 !important;
+  line-height: 1.6 !important;
+  font-size: 0.95rem !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Received messages (left) - Lighter Purple Gradient */
+.rce-mbox-left {
+  background: linear-gradient(135deg, #a29bfe 0%, #b8b3ff 100%) !important;
+  color: white !important;
+  border-bottom-left-radius: 6px !important;
+  box-shadow: 0 3px 15px rgba(162, 155, 254, 0.35) !important;
+}
+
+.rce-mbox-left::before {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.2) 0%,
+    transparent 100%
+  );
+}
+
+.rce-mbox-left:hover {
+  box-shadow: 0 5px 22px rgba(162, 155, 254, 0.45) !important;
+  transform: translateY(-2px) !important;
+}
+
+.rce-mbox-left .rce-mbox-text {
+  color: white !important;
+  font-weight: 500 !important;
+  line-height: 1.6 !important;
+  font-size: 0.95rem !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Message time */
+.rce-mbox-time {
+  font-size: 0.72rem !important;
+  margin-top: 6px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.01em !important;
+  color: white !important;
+}
+
+/* Message title */
+.rce-mbox-title {
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  margin-bottom: 4px !important;
+  color: white !important;
+}
+
+/* ==================== CHAT ITEM ==================== */
+
+.rce-citem {
+  padding: 16px 20px !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05) !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  cursor: pointer !important;
+  font-family: "Inter", sans-serif !important;
+  position: relative !important;
+  border-left: 3px solid transparent !important;
+}
+
+.rce-citem::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 3px;
+  height: 0;
+  background: linear-gradient(180deg, #6c5ce7 0%, #a29bfe 100%);
+  transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.rce-citem:hover::before {
+  height: 100%;
+}
+
+.rce-citem:hover {
+  background: linear-gradient(
+    90deg,
+    rgba(108, 92, 231, 0.06) 0%,
+    transparent 100%
+  ) !important;
+  transform: translateX(2px);
+  border-left: 3px solid transparent !important;
+}
+
+.rce-citem:active {
+  background: rgba(108, 92, 231, 0.1) !important;
+  transform: translateX(4px);
+}
+
+/* Chat item avatar */
+.rce-citem-avatar {
+  width: 54px !important;
+  height: 54px !important;
+  border-radius: 50% !important;
+  margin-right: 14px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+  transition: all 0.3s ease !important;
+  border: 2px solid rgba(255, 255, 255, 0.9) !important;
+}
+
+.rce-citem:hover .rce-citem-avatar {
+  box-shadow: 0 4px 16px rgba(108, 92, 231, 0.25) !important;
+  transform: scale(1.05);
+}
+
+/* Chat item body */
+.rce-citem-body {
+  flex: 1 !important;
+}
+
+.rce-citem-body--top {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  margin-bottom: 6px !important;
+}
+
+.rce-citem-body--top-title {
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  color: #1a1a1a !important;
+  letter-spacing: -0.01em !important;
+}
+
+.rce-citem-body--top-time {
+  font-size: 0.72rem !important;
+  color: #666666 !important;
+  font-weight: 500 !important;
+}
+
+.rce-citem-body--bottom {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+}
+
+.rce-citem-body--bottom-subtitle {
+  font-size: 0.875rem !important;
+  color: #666666 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  flex: 1 !important;
+  font-weight: 500 !important;
+  line-height: 1.5 !important;
+}
+
+/* Unread badge */
+.rce-citem-status-badge {
+  background: linear-gradient(135deg, #6c5ce7 0%, #8b7af2 100%) !important;
+  color: white !important;
+  min-width: 22px !important;
+  height: 20px !important;
+  border-radius: 10px !important;
+  font-size: 0.7rem !important;
+  font-weight: 700 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 6px !important;
+  margin-left: 8px !important;
+  box-shadow: 0 2px 8px rgba(108, 92, 231, 0.5) !important;
+  animation: pulse 2s infinite !important;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    box-shadow: 0 2px 8px rgba(108, 92, 231, 0.5);
+  }
+  50% {
+    box-shadow: 0 4px 16px rgba(108, 92, 231, 0.7);
+  }
+}
+
+/* ==================== INPUT ==================== */
+
+.rce-input-container {
+  padding: 0 !important;
+}
+
+.rce-input {
+  background: linear-gradient(135deg, #f8f9fc 0%, #f5f7fb 100%) !important;
+  border: 2px solid rgba(108, 92, 231, 0.08) !important;
+  border-radius: 20px !important;
+  padding: 14px 18px !important;
+  font-size: 0.95rem !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+  font-family: "Inter", sans-serif !important;
+}
+
+.rce-input:hover {
+  background: #f5f7fb !important;
+  border-color: rgba(108, 92, 231, 0.15) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06) !important;
+}
+
+.rce-input:focus,
+.rce-input:focus-within {
+  background: white !important;
+  border-color: rgba(108, 92, 231, 0.3) !important;
+  outline: none !important;
+  box-shadow: 0 4px 20px rgba(108, 92, 231, 0.15) !important;
+}
+
+.rce-input-textarea {
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  resize: none !important;
+  font-family: "Inter", sans-serif !important;
+  font-size: 0.95rem !important;
+  line-height: 1.5 !important;
+  color: #2c3e50 !important;
+  font-weight: 500 !important;
+}
+
+.rce-input-textarea::placeholder {
+  color: #999999 !important;
+  font-weight: 400 !important;
+}
+
+/* Input buttons */
+.rce-input-buttons {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+.rce-button {
+  background: linear-gradient(135deg, #6c5ce7 0%, #8b7af2 100%) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 12px !important;
+  padding: 10px 20px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55) !important;
+  box-shadow: 0 4px 16px rgba(108, 92, 231, 0.35) !important;
+  font-size: 0.9rem !important;
+  letter-spacing: 0.01em !important;
+}
+
+.rce-button:hover {
+  transform: scale(1.1) rotate(3deg) !important;
+  box-shadow: 0 8px 24px rgba(108, 92, 231, 0.5) !important;
+}
+
+.rce-button:active {
+  transform: scale(0.95) rotate(0deg) !important;
+  box-shadow: 0 2px 8px rgba(108, 92, 231, 0.3) !important;
+}
+
+/* ==================== MESSAGE LIST ==================== */
+
+.rce-mlist {
+  background: transparent !important;
+  padding: 16px !important;
+  overflow-y: auto !important;
+}
+
+.rce-mlist::-webkit-scrollbar {
+  width: 8px !important;
+}
+
+.rce-mlist::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2) !important;
+  border-radius: 4px !important;
+}
+
+.rce-mlist::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+/* ==================== AVATAR ==================== */
+
+.rce-avatar {
+  border-radius: 50% !important;
+  object-fit: cover !important;
+}
+
+.rce-avatar-container {
+  position: relative !important;
+}
+
+/* Online status */
+.rce-avatar-container::after {
+  content: "" !important;
+  position: absolute !important;
+  bottom: 2px !important;
+  right: 2px !important;
+  width: 12px !important;
+  height: 12px !important;
+  border-radius: 50% !important;
+  background: #44b700 !important;
+  border: 2px solid white !important;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* ==================== SYSTEM MESSAGE ==================== */
+
+.rce-container-smsg {
+  text-align: center !important;
+  margin: 16px 0 !important;
+}
+
+.rce-smsg {
+  background: #e8e6f7 !important;
+  color: #6c5ce7 !important;
+  padding: 6px 12px !important;
+  border-radius: 12px !important;
+  font-size: 0.8rem !important;
+  display: inline-block !important;
+  font-weight: 500 !important;
+}
+
+/* ==================== CHAT LIST ==================== */
+
+.rce-clist {
+  background: transparent !important;
+  overflow-y: auto !important;
+}
+
+.rce-clist::-webkit-scrollbar {
+  width: 8px !important;
+}
+
+.rce-clist::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2) !important;
+  border-radius: 4px !important;
+}
+
+/* ==================== MEDIA MESSAGES ==================== */
+
+.rce-mbox-photo {
+  max-width: 300px !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+}
+
+.rce-mbox-photo img {
+  width: 100% !important;
+  height: auto !important;
+  cursor: pointer !important;
+  transition: transform 0.2s !important;
+}
+
+.rce-mbox-photo img:hover {
+  transform: scale(1.02) !important;
+}
+
+.rce-mbox-file {
+  background: #f5f3ff !important;
+  padding: 12px !important;
+  border-radius: 8px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+/* ==================== DARK MODE SUPPORT ==================== */
+
+@media (prefers-color-scheme: dark) {
+  .rce-mbox-right {
+    background: linear-gradient(135deg, #6c5ce7 0%, #8b7fee 100%) !important;
+    color: #ffffff !important;
+  }
+
+  .rce-mbox-right .rce-mbox-text {
+    color: #ffffff !important;
+  }
+
+  .rce-mbox-left {
+    background: linear-gradient(135deg, #a29bfe 0%, #b8b3ff 100%) !important;
+    color: #ffffff !important;
+  }
+
+  .rce-mbox-left .rce-mbox-text {
+    color: #ffffff !important;
+  }
+
+  .rce-mbox-time {
+    color: #ffffff !important;
+  }
+
+  .rce-mbox-title {
+    color: #ffffff !important;
+  }
+
+  .rce-citem {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
+  }
+
+  .rce-citem-body--top-title {
+    color: #ffffff !important;
+  }
+
+  .rce-citem-body--bottom-subtitle {
+    color: #cccccc !important;
+  }
+
+  .rce-citem-body--top-time {
+    color: #aaaaaa !important;
+  }
+
+  .rce-smsg {
+    background: #6c5ce7 !important;
+    color: #ffffff !important;
+  }
+
+  .rce-mbox-file {
+    background: #5a4ecf !important;
+  }
+}
+
+/* ==================== RESPONSIVE ==================== */
+
+@media (max-width: 768px) {
+  .rce-mbox {
+    max-width: 85% !important;
+  }
+
+  .rce-citem {
+    padding: 12px !important;
+  }
+
+  .rce-citem-avatar {
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  .rce-mlist {
+    padding: 12px !important;
+  }
+}
+
+/* ==================== ANIMATIONS ==================== */
+
+.rce-mbox {
+  animation: fadeIn 0.3s ease-in-out !important;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Typing indicator */
+.rce-mbox.typing-indicator .rce-mbox-text {
+  animation: typingDots 1.4s infinite !important;
+}
+
+@keyframes typingDots {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+  }
+  30% {
+    opacity: 1;
+  }
+}
