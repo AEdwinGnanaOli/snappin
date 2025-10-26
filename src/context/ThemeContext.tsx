@@ -43,7 +43,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const themeColors = customColors || themePresets[currentTheme];
 
   const theme: Theme = useMemo(() => {
-    const isDark = themeColors.background === "#1a1a1a";
+    const isDark = themeColors.background === "#1a1a1a" || themeColors.background === "#0F172A";
 
     return createTheme({
       palette: {
@@ -62,6 +62,20 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       },
       typography: {
         fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+      },
+      // Add custom properties for message bubbles and gradients
+      components: {
+        MuiCssBaseline: {
+          styleOverrides: {
+            ':root': {
+              '--accent-color': themeColors.accent,
+              '--gradient': themeColors.gradient,
+              '--message-own': themeColors.messageBubble.own,
+              '--message-other': themeColors.messageBubble.other,
+              '--message-other-gradient': themeColors.messageBubble.otherGradient,
+            },
+          },
+        },
       },
     });
   }, [themeColors]);

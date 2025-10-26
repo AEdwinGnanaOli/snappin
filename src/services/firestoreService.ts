@@ -11,10 +11,10 @@ import {
   getDocs,
   onSnapshot,
   deleteDoc,
-  serverTimestamp,
-  Timestamp,
   writeBatch,
   increment,
+  serverTimestamp,
+  Timestamp,
 } from "firebase/firestore";
 import {
   firestore,
@@ -22,7 +22,7 @@ import {
   CHATS_COLLECTION,
   MESSAGES_COLLECTION,
   GROUPS_COLLECTION,
-} from "../config/firebase-config";
+} from "../config/firebase";
 
 // ==================== TYPES ====================
 
@@ -43,6 +43,7 @@ export interface Message {
   chatId: string;
   senderId: string;
   senderName?: string;
+  recipientId?: string;
   text: string;
   timestamp: string;
   read: boolean;
@@ -50,7 +51,7 @@ export interface Message {
   fileUrl?: string;
   fileName?: string;
   fileSize?: number;
-  replyTo?: string; // Message ID being replied to
+  replyTo?: string;
   edited?: boolean;
   deletedAt?: string;
 }
@@ -68,7 +69,6 @@ export interface Chat {
   type: "private" | "group";
   createdAt?: string;
   createdBy?: string;
-  // Group specific
   groupName?: string;
   groupPhoto?: string;
   groupDescription?: string;
@@ -89,9 +89,6 @@ export interface Group {
 
 // ==================== USER OPERATIONS ====================
 
-/**
- * Create or update user in Firestore
- */
 export const createOrUpdateUser = async (
   userId: string,
   userData: Partial<UserData>
@@ -101,13 +98,11 @@ export const createOrUpdateUser = async (
     const userDoc = await getDoc(userRef);
 
     if (userDoc.exists()) {
-      // Update existing user
       await updateDoc(userRef, {
         ...userData,
         lastSeen: new Date().toISOString(),
       });
     } else {
-      // Create new user
       await setDoc(userRef, {
         uid: userId,
         ...userData,
@@ -121,9 +116,6 @@ export const createOrUpdateUser = async (
   }
 };
 
-/**
- * Update user status (online/offline)
- */
 export const updateUserStatus = async (
   userId: string,
   status: "online" | "offline"
@@ -134,15 +126,12 @@ export const updateUserStatus = async (
       status,
       lastSeen: new Date().toISOString(),
     });
+    console.log(`✅ User status updated to ${status}`);
   } catch (error) {
     console.error("❌ Error updating user status:", error);
-    // Don't throw error to prevent app crashes on status updates
   }
 };
 
-/**
- * Get user data by ID
- */
 export const getUserData = async (userId: string): Promise<UserData | null> => {
   try {
     const userRef = doc(firestore, USERS_COLLECTION, userId);
@@ -158,9 +147,6 @@ export const getUserData = async (userId: string): Promise<UserData | null> => {
   }
 };
 
-/**
- * Get multiple users by IDs
- */
 export const getUsersByIds = async (userIds: string[]): Promise<UserData[]> => {
   try {
     const users: UserData[] = [];
@@ -179,9 +165,6 @@ export const getUsersByIds = async (userIds: string[]): Promise<UserData[]> => {
   }
 };
 
-/**
- * Get all users (for contacts/search)
- */
 export const getAllUsers = async (
   excludeUserId?: string
 ): Promise<UserData[]> => {
@@ -203,9 +186,32 @@ export const getAllUsers = async (
   }
 };
 
-/**
- * Search users by name or email
- */
+export const subscribeToAllUsers = (
+  callback: (users: UserData[]) => void,
+  excludeUserId?: string
+) => {
+  const usersRef = collection(firestore, USERS_COLLECTION);
+
+  return onSnapshot(
+    usersRef,
+    (snapshot) => {
+      const users: UserData[] = [];
+      snapshot.forEach((doc) => {
+        if (!excludeUserId || doc.id !== excludeUserId) {
+          users.push({ uid: doc.id, ...doc.data() } as UserData);
+        }
+      });
+
+      users.sort((a, b) => a.name.localeCompare(b.name));
+
+      callback(users);
+    },
+    (error) => {
+      console.error("❌ Error subscribing to all users:", error);
+    }
+  );
+};
+
 export const searchUsers = async (
   searchTerm: string,
   excludeUserId?: string
@@ -225,9 +231,6 @@ export const searchUsers = async (
   }
 };
 
-/**
- * Update user profile
- */
 export const updateUserProfile = async (
   userId: string,
   updates: Partial<UserData>
@@ -241,9 +244,6 @@ export const updateUserProfile = async (
   }
 };
 
-/**
- * Listen to user status changes
- */
 export const subscribeToUserStatus = (
   userId: string,
   callback: (status: "online" | "offline", lastSeen: string) => void
@@ -266,9 +266,6 @@ export const subscribeToUserStatus = (
 
 // ==================== CHAT OPERATIONS ====================
 
-/**
- * Create a new chat (private or group)
- */
 export const createChat = async (
   participants: string[],
   type: "private" | "group" = "private",
@@ -277,12 +274,16 @@ export const createChat = async (
     description?: string;
     photoURL?: string;
     createdBy: string;
-  }
+  },
+  chatId?: string
 ): Promise<string> => {
   try {
-    const chatRef = doc(collection(firestore, CHATS_COLLECTION));
+    // Use provided chatId or generate a new one
+    const chatRef = chatId
+      ? doc(firestore, CHATS_COLLECTION, chatId)
+      : doc(collection(firestore, CHATS_COLLECTION));
 
-    const chatData: Chat = {
+    const chatData: any = {
       participants,
       type,
       createdAt: new Date().toISOString(),
@@ -291,13 +292,21 @@ export const createChat = async (
 
     if (type === "group" && groupData) {
       chatData.groupName = groupData.name;
-      chatData.groupDescription = groupData.description;
-      chatData.groupPhoto = groupData.photoURL;
       chatData.createdBy = groupData.createdBy;
       chatData.admins = [groupData.createdBy];
+
+      // Only add optional fields if they have values
+      if (groupData.description) {
+        chatData.groupDescription = groupData.description;
+      }
+      if (groupData.photoURL) {
+        chatData.groupPhoto = groupData.photoURL;
+      }
     }
 
     await setDoc(chatRef, chatData);
+    console.log("✅ Chat created with ID:", chatRef.id);
+
     return chatRef.id;
   } catch (error) {
     console.error("❌ Error creating chat:", error);
@@ -305,9 +314,6 @@ export const createChat = async (
   }
 };
 
-/**
- * Find existing private chat between two users
- */
 export const findPrivateChat = async (
   userId1: string,
   userId2: string
@@ -336,22 +342,17 @@ export const findPrivateChat = async (
   }
 };
 
-/**
- * Get or create private chat
- */
 export const getOrCreatePrivateChat = async (
   userId1: string,
   userId2: string
 ): Promise<string> => {
   try {
-    // Check if chat already exists
     const existingChatId = await findPrivateChat(userId1, userId2);
 
     if (existingChatId) {
       return existingChatId;
     }
 
-    // Create new chat
     return await createChat([userId1, userId2], "private");
   } catch (error) {
     console.error("❌ Error getting or creating private chat:", error);
@@ -359,9 +360,6 @@ export const getOrCreatePrivateChat = async (
   }
 };
 
-/**
- * Get user's chats
- */
 export const getUserChats = async (userId: string): Promise<Chat[]> => {
   try {
     const chatsRef = collection(firestore, CHATS_COLLECTION);
@@ -374,10 +372,10 @@ export const getUserChats = async (userId: string): Promise<Chat[]> => {
       chats.push({ id: doc.id, ...doc.data() } as Chat);
     });
 
-    // Sort by last message time
     chats.sort((a, b) => {
-      const timeA = a.lastMessageTime || a.createdAt || "";
-      const timeB = b.lastMessageTime || b.createdAt || "";
+      // Convert any type to string, handling undefined/null
+      const timeA = String(a.lastMessageTime || a.createdAt || "");
+      const timeB = String(b.lastMessageTime || b.createdAt || "");
       return timeB.localeCompare(timeA);
     });
 
@@ -388,9 +386,6 @@ export const getUserChats = async (userId: string): Promise<Chat[]> => {
   }
 };
 
-/**
- * Listen to user's chats in real-time
- */
 export const subscribeToUserChats = (
   userId: string,
   callback: (chats: Chat[]) => void
@@ -406,13 +401,14 @@ export const subscribeToUserChats = (
         chats.push({ id: doc.id, ...doc.data() } as Chat);
       });
 
-      // Sort by last message time
       chats.sort((a, b) => {
-        const timeA = a.lastMessageTime || a.createdAt || "";
-        const timeB = b.lastMessageTime || b.createdAt || "";
+        // Convert any type to string, handling undefined/null
+        const timeA = String(a.lastMessageTime || a.createdAt || "");
+        const timeB = String(b.lastMessageTime || b.createdAt || "");
         return timeB.localeCompare(timeA);
       });
 
+      console.log("📱 Chats updated:", chats.length, "chats");
       callback(chats);
     },
     (error) => {
@@ -421,14 +417,10 @@ export const subscribeToUserChats = (
   );
 };
 
-/**
- * Delete a chat
- */
 export const deleteChat = async (chatId: string): Promise<void> => {
   try {
     const batch = writeBatch(firestore);
 
-    // Delete all messages in the chat
     const messagesRef = collection(firestore, MESSAGES_COLLECTION);
     const q = query(messagesRef, where("chatId", "==", chatId));
     const snapshot = await getDocs(q);
@@ -437,7 +429,6 @@ export const deleteChat = async (chatId: string): Promise<void> => {
       batch.delete(doc.ref);
     });
 
-    // Delete the chat
     const chatRef = doc(firestore, CHATS_COLLECTION, chatId);
     batch.delete(chatRef);
 
@@ -450,9 +441,6 @@ export const deleteChat = async (chatId: string): Promise<void> => {
 
 // ==================== MESSAGE OPERATIONS ====================
 
-/**
- * Send a message
- */
 export const sendMessage = async (
   chatId: string,
   senderId: string,
@@ -466,41 +454,50 @@ export const sendMessage = async (
   }
 ): Promise<string> => {
   try {
-    // Add message to messages collection
     const messageRef = doc(collection(firestore, MESSAGES_COLLECTION));
-    const messageData: Message = {
+    const timestamp = new Date().toISOString();
+
+    // GET CHAT TO DETERMINE RECIPIENT
+    const chatRef = doc(firestore, CHATS_COLLECTION, chatId);
+    const chatDoc = await getDoc(chatRef);
+
+    let recipientId: string | undefined;
+
+    if (chatDoc.exists()) {
+      const chat = chatDoc.data() as Chat;
+
+      // For private chats, find the other participant
+      if (chat.type === "private") {
+        recipientId = chat.participants.find((id) => id !== senderId);
+      }
+      // For group chats, recipientId remains undefined
+    }
+
+    // Build message data - only include recipientId if it exists
+    const messageData: any = {
       chatId,
       senderId,
       text,
-      timestamp: new Date().toISOString(),
+      timestamp,
       read: false,
       type,
       ...metadata,
     };
 
-    await setDoc(messageRef, messageData);
-
-    // Update chat with last message
-    const chatRef = doc(firestore, CHATS_COLLECTION, chatId);
-    const chatDoc = await getDoc(chatRef);
-
-    if (chatDoc.exists()) {
-      const chat = chatDoc.data() as Chat;
-      const updates: any = {
-        lastMessage: text.length > 50 ? text.substring(0, 50) + "..." : text,
-        lastMessageSenderId: senderId,
-        lastMessageTime: new Date().toISOString(),
-      };
-
-      // Increment unread count for other participants
-      chat.participants.forEach((participantId) => {
-        if (participantId !== senderId) {
-          updates[`unreadCount.${participantId}`] = increment(1);
-        }
-      });
-
-      await updateDoc(chatRef, updates);
+    // Only add recipientId if it's defined (for private chats)
+    if (recipientId) {
+      messageData.recipientId = recipientId;
     }
+
+    await setDoc(messageRef, messageData);
+    console.log("✅ Message sent:", messageRef.id);
+
+    // Update chat's last message
+    await updateDoc(chatRef, {
+      lastMessage: text,
+      lastMessageTime: timestamp,
+      lastMessageSenderId: senderId,
+    });
 
     return messageRef.id;
   } catch (error) {
@@ -509,24 +506,13 @@ export const sendMessage = async (
   }
 };
 
-/**
- * Get messages for a chat
- */
 export const getChatMessages = async (
   chatId: string,
   limit?: number
 ): Promise<Message[]> => {
   try {
     const messagesRef = collection(firestore, MESSAGES_COLLECTION);
-    let q = query(
-      messagesRef,
-      where("chatId", "==", chatId),
-      orderBy("timestamp", "desc")
-    );
-
-    if (limit) {
-      q = query(q);
-    }
+    const q = query(messagesRef, where("chatId", "==", chatId));
 
     const snapshot = await getDocs(q);
     const messages: Message[] = [];
@@ -538,26 +524,28 @@ export const getChatMessages = async (
       }
     });
 
-    return messages.reverse(); // Return in chronological order
+    // Sort in memory
+    messages.sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime();
+      const timeB = new Date(b.timestamp).getTime();
+      return timeA - timeB; // ascending order (oldest first)
+    });
+
+    return messages;
   } catch (error) {
     console.error("❌ Error getting chat messages:", error);
     throw error;
   }
 };
 
-/**
- * Listen to messages in real-time
- */
 export const subscribeToMessages = (
   chatId: string,
   callback: (messages: Message[]) => void
 ) => {
+  console.log("📨 Subscribing to messages for chat:", chatId);
+
   const messagesRef = collection(firestore, MESSAGES_COLLECTION);
-  const q = query(
-    messagesRef,
-    where("chatId", "==", chatId),
-    orderBy("timestamp", "asc")
-  );
+  const q = query(messagesRef, where("chatId", "==", chatId));
 
   return onSnapshot(
     q,
@@ -569,6 +557,15 @@ export const subscribeToMessages = (
           messages.push(message);
         }
       });
+
+      // Sort in memory instead of using Firestore orderBy
+      messages.sort((a, b) => {
+        const timeA = new Date(a.timestamp).getTime();
+        const timeB = new Date(b.timestamp).getTime();
+        return timeA - timeB; // ascending order
+      });
+
+      console.log("📨 Messages updated:", messages.length, "messages");
       callback(messages);
     },
     (error) => {
@@ -577,45 +574,59 @@ export const subscribeToMessages = (
   );
 };
 
-/**
- * Mark messages as read
- */
 export const markMessagesAsRead = async (
   chatId: string,
   userId: string
 ): Promise<void> => {
   try {
     const messagesRef = collection(firestore, MESSAGES_COLLECTION);
+
+    // Get all unread messages in this chat that the user didn't send
     const q = query(
       messagesRef,
       where("chatId", "==", chatId),
-      where("senderId", "!=", userId),
       where("read", "==", false)
     );
 
     const snapshot = await getDocs(q);
     const batch = writeBatch(firestore);
 
-    snapshot.forEach((doc) => {
-      batch.update(doc.ref, { read: true });
+    let markedCount = 0;
+    snapshot.forEach((docSnapshot) => {
+      const message = docSnapshot.data();
+
+      // Only mark messages as read if:
+      // 1. For private chats: user is the recipient
+      // 2. For group chats: user is not the sender
+      const shouldMarkAsRead =
+        (message.recipientId && message.recipientId === userId) || // Private chat
+        (!message.recipientId && message.senderId !== userId); // Group chat
+
+      if (shouldMarkAsRead) {
+        batch.update(docSnapshot.ref, {
+          read: true,
+          readAt: serverTimestamp(),
+        });
+        markedCount++;
+      }
     });
 
-    await batch.commit();
+    if (markedCount > 0) {
+      await batch.commit();
+    }
 
-    // Reset unread count for this user
+    // Update unread count
     const chatRef = doc(firestore, CHATS_COLLECTION, chatId);
     await updateDoc(chatRef, {
       [`unreadCount.${userId}`]: 0,
     });
+
+    console.log(`✅ Marked ${markedCount} messages as read`);
   } catch (error) {
     console.error("❌ Error marking messages as read:", error);
-    throw error;
   }
 };
 
-/**
- * Edit a message
- */
 export const editMessage = async (
   messageId: string,
   newText: string
@@ -632,9 +643,6 @@ export const editMessage = async (
   }
 };
 
-/**
- * Delete a message
- */
 export const deleteMessage = async (messageId: string): Promise<void> => {
   try {
     const messageRef = doc(firestore, MESSAGES_COLLECTION, messageId);
@@ -651,38 +659,69 @@ export const deleteMessage = async (messageId: string): Promise<void> => {
 // ==================== GROUP OPERATIONS ====================
 
 /**
- * Create a group
+ * Creates a new group in GROUPS_COLLECTION
  */
 export const createGroup = async (
-  name: string,
-  members: string[],
-  createdBy: string,
-  description?: string,
-  photoURL?: string
+  groupData: {
+    name: string;
+    description?: string;
+    photoURL?: string;
+    memberIds: string[];
+    createdBy: string;
+  }
 ): Promise<string> => {
   try {
     const groupRef = doc(collection(firestore, GROUPS_COLLECTION));
-    const groupData: Group = {
-      name,
-      description,
-      photoURL,
-      members,
-      admins: [createdBy],
-      createdBy,
+    const groupId = groupRef.id;
+
+    // Build group object, only including defined fields
+    const group: Partial<Group> = {
+      id: groupId,
+      name: groupData.name,
+      members: [groupData.createdBy, ...groupData.memberIds],
+      admins: [groupData.createdBy],
+      createdBy: groupData.createdBy,
       createdAt: new Date().toISOString(),
     };
 
-    await setDoc(groupRef, groupData);
+    // Only add optional fields if they have values
+    if (groupData.description) {
+      group.description = groupData.description;
+    }
+    if (groupData.photoURL) {
+      group.photoURL = groupData.photoURL;
+    }
 
-    // Create a chat for this group
-    await createChat(members, "group", {
-      name,
-      description,
-      photoURL,
-      createdBy,
-    });
+    await setDoc(groupRef, group);
+    console.log("✅ Group created in GROUPS_COLLECTION:", groupId);
 
-    return groupRef.id;
+    // Also create a chat entry for messaging
+    const chatGroupData: {
+      name: string;
+      createdBy: string;
+      description?: string;
+      photoURL?: string;
+    } = {
+      name: groupData.name,
+      createdBy: groupData.createdBy,
+    };
+
+    // Only add optional fields if they have values
+    if (groupData.description) {
+      chatGroupData.description = groupData.description;
+    }
+    if (groupData.photoURL) {
+      chatGroupData.photoURL = groupData.photoURL;
+    }
+
+    await createChat(
+      [groupData.createdBy, ...groupData.memberIds],
+      "group",
+      chatGroupData,
+      groupId // Use the same ID
+    );
+
+    return groupId;
   } catch (error) {
     console.error("❌ Error creating group:", error);
     throw error;
@@ -690,24 +729,62 @@ export const createGroup = async (
 };
 
 /**
- * Add member to group
+ * Gets a group by ID from GROUPS_COLLECTION
+ */
+export const getGroup = async (groupId: string): Promise<Group | null> => {
+  try {
+    const groupRef = doc(firestore, GROUPS_COLLECTION, groupId);
+    const groupDoc = await getDoc(groupRef);
+
+    if (groupDoc.exists()) {
+      return groupDoc.data() as Group;
+    }
+    return null;
+  } catch (error) {
+    console.error("❌ Error getting group:", error);
+    throw error;
+  }
+};
+
+/**
+ * Adds a member to a group in both GROUPS_COLLECTION and CHATS_COLLECTION
  */
 export const addGroupMember = async (
   groupId: string,
   userId: string
 ): Promise<void> => {
   try {
+    const batch = writeBatch(firestore);
+
+    // Update GROUPS_COLLECTION
     const groupRef = doc(firestore, GROUPS_COLLECTION, groupId);
     const groupDoc = await getDoc(groupRef);
 
     if (groupDoc.exists()) {
       const group = groupDoc.data() as Group;
       if (!group.members.includes(userId)) {
-        await updateDoc(groupRef, {
+        batch.update(groupRef, {
           members: [...group.members, userId],
         });
       }
     }
+
+    // Update CHATS_COLLECTION
+    const chatRef = doc(firestore, CHATS_COLLECTION, groupId);
+    const chatDoc = await getDoc(chatRef);
+
+    if (chatDoc.exists()) {
+      const chat = chatDoc.data() as Chat;
+      if (!chat.participants.includes(userId)) {
+        batch.update(chatRef, {
+          participants: [...chat.participants, userId],
+          [`unreadCount.${userId}`]: 0,
+        });
+      }
+    }
+
+    await batch.commit();
+    console.log("✅ Member added to group:", userId);
   } catch (error) {
     console.error("❌ Error adding group member:", error);
     throw error;
@@ -715,23 +792,41 @@ export const addGroupMember = async (
 };
 
 /**
- * Remove member from group
+ * Removes a member from a group in both GROUPS_COLLECTION and CHATS_COLLECTION
  */
 export const removeGroupMember = async (
   groupId: string,
   userId: string
 ): Promise<void> => {
   try {
+    const batch = writeBatch(firestore);
+
+    // Update GROUPS_COLLECTION
     const groupRef = doc(firestore, GROUPS_COLLECTION, groupId);
     const groupDoc = await getDoc(groupRef);
 
     if (groupDoc.exists()) {
       const group = groupDoc.data() as Group;
-      await updateDoc(groupRef, {
+      batch.update(groupRef, {
         members: group.members.filter((id) => id !== userId),
         admins: group.admins.filter((id) => id !== userId),
       });
     }
+
+    // Update CHATS_COLLECTION
+    const chatRef = doc(firestore, CHATS_COLLECTION, groupId);
+    const chatDoc = await getDoc(chatRef);
+
+    if (chatDoc.exists()) {
+      const chat = chatDoc.data() as Chat;
+      batch.update(chatRef, {
+        participants: chat.participants.filter((id) => id !== userId),
+        admins: chat.admins?.filter((id) => id !== userId),
+      });
+    }
+
+    await batch.commit();
+    console.log("✅ Member removed from group:", userId);
   } catch (error) {
     console.error("❌ Error removing group member:", error);
     throw error;
@@ -739,26 +834,65 @@ export const removeGroupMember = async (
 };
 
 /**
- * Update group info
+ * Updates group information in both GROUPS_COLLECTION and CHATS_COLLECTION
  */
 export const updateGroupInfo = async (
   groupId: string,
   updates: { name?: string; description?: string; photoURL?: string }
 ): Promise<void> => {
   try {
+    const batch = writeBatch(firestore);
+
+    // Update GROUPS_COLLECTION
     const groupRef = doc(firestore, GROUPS_COLLECTION, groupId);
-    await updateDoc(groupRef, updates);
+    const groupUpdateData: Partial<Group> = {};
+    if (updates.name !== undefined) groupUpdateData.name = updates.name;
+    if (updates.description !== undefined) groupUpdateData.description = updates.description;
+    if (updates.photoURL !== undefined) groupUpdateData.photoURL = updates.photoURL;
+
+    if (Object.keys(groupUpdateData).length > 0) {
+      batch.update(groupRef, groupUpdateData);
+    }
+
+    // Update CHATS_COLLECTION
+    const chatRef = doc(firestore, CHATS_COLLECTION, groupId);
+    const chatUpdateData: Partial<Chat> = {};
+    if (updates.name !== undefined) chatUpdateData.groupName = updates.name;
+    if (updates.description !== undefined) chatUpdateData.groupDescription = updates.description;
+    if (updates.photoURL !== undefined) chatUpdateData.groupPhoto = updates.photoURL;
+
+    if (Object.keys(chatUpdateData).length > 0) {
+      batch.update(chatRef, chatUpdateData);
+    }
+
+    await batch.commit();
+    console.log("✅ Group info updated:", groupId);
   } catch (error) {
     console.error("❌ Error updating group info:", error);
     throw error;
   }
 };
 
+/**
+ * Gets all groups for a user
+ */
+export const getUserGroups = async (userId: string): Promise<Group[]> => {
+  try {
+    const groupsQuery = query(
+      collection(firestore, GROUPS_COLLECTION),
+      where("members", "array-contains", userId)
+    );
+
+    const snapshot = await getDocs(groupsQuery);
+    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Group));
+  } catch (error) {
+    console.error("❌ Error getting user groups:", error);
+    throw error;
+  }
+};
+
 // ==================== TYPING INDICATORS ====================
 
-/**
- * Set typing status for a user in a chat
- */
 export const setTypingStatus = async (
   chatId: string,
   userId: string,
@@ -779,13 +913,9 @@ export const setTypingStatus = async (
     }
   } catch (error) {
     console.error("❌ Error setting typing status:", error);
-    // Don't throw to prevent disrupting user experience
   }
 };
 
-/**
- * Subscribe to typing indicators for a chat
- */
 export const subscribeToTypingIndicators = (
   chatId: string,
   callback: (typingUsers: { userId: string; timestamp: string }[]) => void
@@ -803,7 +933,6 @@ export const subscribeToTypingIndicators = (
         const data = doc.data();
         const typingTime = new Date(data.timestamp).getTime();
 
-        // Only show typing if it's less than 5 seconds old
         if (now - typingTime < 5000) {
           typingUsers.push({
             userId: data.userId,
@@ -822,9 +951,6 @@ export const subscribeToTypingIndicators = (
 
 // ==================== PRESENCE/ONLINE STATUS ====================
 
-/**
- * Set user presence (online/offline)
- */
 export const setUserPresence = async (
   userId: string,
   isOnline: boolean
@@ -838,16 +964,12 @@ export const setUserPresence = async (
       lastSeen: new Date().toISOString(),
     });
 
-    // Also update user status
     await updateUserStatus(userId, isOnline ? "online" : "offline");
   } catch (error) {
     console.error("❌ Error setting user presence:", error);
   }
 };
 
-/**
- * Subscribe to user presence
- */
 export const subscribeToUserPresence = (
   userId: string,
   callback: (isOnline: boolean, lastSeen: string) => void
@@ -870,12 +992,11 @@ export const subscribeToUserPresence = (
   );
 };
 
-/**
- * Subscribe to multiple users' presence
- */
 export const subscribeToMultipleUserPresence = (
   userIds: string[],
-  callback: (presenceMap: Record<string, { isOnline: boolean; lastSeen: string }>) => void
+  callback: (
+    presenceMap: Record<string, { isOnline: boolean; lastSeen: string }>
+  ) => void
 ) => {
   if (userIds.length === 0) {
     callback({});
@@ -883,12 +1004,15 @@ export const subscribeToMultipleUserPresence = (
   }
 
   const presenceRef = collection(firestore, "presence");
-  const q = query(presenceRef, where("userId", "in", userIds.slice(0, 10))); // Firestore 'in' limit is 10
+  const q = query(presenceRef, where("userId", "in", userIds.slice(0, 10)));
 
   return onSnapshot(
     q,
     (snapshot) => {
-      const presenceMap: Record<string, { isOnline: boolean; lastSeen: string }> = {};
+      const presenceMap: Record<
+        string,
+        { isOnline: boolean; lastSeen: string }
+      > = {};
 
       snapshot.forEach((doc) => {
         const data = doc.data();

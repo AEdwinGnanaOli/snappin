@@ -9,12 +9,11 @@ const firebaseConfig = {
   apiKey: "AIzaSyAPllgLAbVQkXxRHDobAeVr-rTW86u0J-g",
   authDomain: "testchat-3839e.firebaseapp.com",
   projectId: "testchat-3839e",
-  storageBucket: "testchat-3839e.appspot.com",
+  storageBucket: "testchat-3839e.firebasestorage.app",
   messagingSenderId: "325519195917",
   appId: "1:325519195917:web:b0e7cf2ae01649f940fa44",
   measurementId: "G-904TBENZYD",
 };
-
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 

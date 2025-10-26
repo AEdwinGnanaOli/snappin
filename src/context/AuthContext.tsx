@@ -5,6 +5,9 @@ import React, {
   useState,
   useEffect,
   ReactNode,
+  useRef,
+  useMemo,
+  useCallback,
 } from "react";
 import {
   createUserWithEmailAndPassword,
@@ -15,7 +18,7 @@ import {
   User as FirebaseUser,
   updateProfile,
 } from "firebase/auth";
-import { auth } from "../config/firebase-config";
+import { auth } from "../config/firebase";
 import {
   createOrUpdateUser,
   updateUserStatus,
@@ -31,6 +34,7 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
+  currentUser: User | null;
   isAuthenticated: boolean;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
@@ -57,6 +61,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Refs to track state across effect cleanup
+  const isRefreshingRef = useRef(false);
+  const offlineTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const userIdRef = useRef<string | null>(null);
+
   // Convert Firebase User to our User type
   const formatUser = (firebaseUser: FirebaseUser): User => {
     return {
@@ -67,23 +76,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
   };
 
-  // Sign up function
-  const signup = async (
+  // Sign up function - memoized to prevent re-renders
+  const signup = useCallback(async (
     name: string,
     email: string,
     password: string
   ): Promise<void> => {
     try {
-      console.log("🔍 Debug Info:");
-      console.log("   Auth instance:", auth);
-      console.log("   App name:", auth.app.name);
-      console.log("   API Key:", auth.config.apiKey);
-      console.log("   Auth Domain:", auth.config.authDomain);
-      console.log("   Project ID:", auth.app.options.projectId);
-
       console.log("🔄 Attempting to create user with email:", email);
 
-      // Create user with email and password
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         email,
@@ -92,14 +93,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       console.log("✅ User created successfully:", userCredential.user.uid);
 
-      // Update profile with display name
       await updateProfile(userCredential.user, {
         displayName: name,
       });
 
       console.log("✅ Profile updated with display name");
 
-      // Create user document in Firestore using service
       await createOrUpdateUser(userCredential.user.uid, {
         name: name,
         email: email,
@@ -109,7 +108,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       console.log("✅ User document created in Firestore");
 
-      // Update local user state
       setUser({
         uid: userCredential.user.uid,
         email: email,
@@ -121,9 +119,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error("❌ Error signing up:", error);
       console.error("❌ Error code:", error.code);
       console.error("❌ Error message:", error.message);
-      console.error("❌ Full error:", JSON.stringify(error, null, 2));
 
-      // Provide helpful error message
       if (error.code === "auth/configuration-not-found") {
         console.error(
           "⚠️ IMPORTANT: Email/Password authentication is NOT enabled in Firebase Console!"
@@ -136,10 +132,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       throw error;
     }
-  };
+  }, []);
 
-  // Login function
-  const login = async (email: string, password: string): Promise<void> => {
+  // Login function - memoized to prevent re-renders
+  const login = useCallback(async (email: string, password: string): Promise<void> => {
     try {
       console.log("🔄 Attempting login with email:", email);
 
@@ -151,7 +147,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       console.log("✅ Login successful:", userCredential.user.uid);
 
-      // Update user status to online using service
       await updateUserStatus(userCredential.user.uid, "online");
 
       setUser(formatUser(userCredential.user));
@@ -161,10 +156,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error("❌ Error code:", error.code);
       throw error;
     }
-  };
+  }, []);
 
-  // Sign in anonymously
-  const signInAnonymously = async (): Promise<void> => {
+  // Sign in anonymously - memoized to prevent re-renders
+  const signInAnonymously = useCallback(async (): Promise<void> => {
     try {
       console.log("🔄 Attempting anonymous sign in");
 
@@ -173,12 +168,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       console.log("✅ Anonymous user created:", userCredential.user.uid);
 
-      // Update profile with anonymous name
       await updateProfile(userCredential.user, {
         displayName: anonymousName,
       });
 
-      // Create user document in Firestore using service
       await createOrUpdateUser(userCredential.user.uid, {
         name: anonymousName,
         status: "online",
@@ -207,25 +200,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       throw error;
     }
-  };
+  }, []);
 
-  // Logout function
-  const logout = async (): Promise<void> => {
+  // Logout function - memoized to prevent re-renders
+  const logout = useCallback(async (): Promise<void> => {
     try {
       if (user) {
         console.log("🔄 Logging out user:", user.uid);
-        // Update status to offline before logout
         await updateUserStatus(user.uid, "offline");
       }
 
       await firebaseSignOut(auth);
       setUser(null);
+      userIdRef.current = null;
       console.log("✅ User logged out successfully");
     } catch (error: any) {
       console.error("❌ Error logging out:", error);
       throw error;
     }
-  };
+  }, [user]);
 
   // Listen for auth state changes
   useEffect(() => {
@@ -234,9 +227,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         console.log("🔄 Auth state: User logged in -", firebaseUser.uid);
+        userIdRef.current = firebaseUser.uid;
 
         try {
-          // Get additional user data from Firestore using service
           const userData = await getUserData(firebaseUser.uid);
 
           if (userData) {
@@ -247,13 +240,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               photoURL: userData.photoURL || firebaseUser.photoURL || undefined,
             });
 
-            // Update user status to online
+            // Update status to online (important for refresh scenarios)
             await updateUserStatus(firebaseUser.uid, "online");
           } else {
-            // If no Firestore data exists, use Firebase auth data
             setUser(formatUser(firebaseUser));
 
-            // Create initial Firestore document
             await createOrUpdateUser(firebaseUser.uid, {
               name: firebaseUser.displayName || "User",
               email: firebaseUser.email || "",
@@ -267,59 +258,137 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } else {
         console.log("🔄 Auth state: User logged out");
         setUser(null);
+        userIdRef.current = null;
       }
       setLoading(false);
     });
 
-    // Cleanup: Set user offline when window is closed
-    const handleBeforeUnload = async () => {
-      if (user) {
-        await updateUserStatus(user.uid, "offline");
+    return () => {
+      console.log("🧹 Cleaning up auth state listener");
+      unsubscribe();
+    };
+  }, []);
+
+  // Handle page unload - ONLY mark offline on actual window close
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      const userId = userIdRef.current;
+      if (!userId) return;
+
+      // Check if this is a refresh or navigation within the app
+      const isRefresh =
+        e.type === "beforeunload" &&
+        (performance.navigation.type === 1 || // TYPE_RELOAD
+          (window.performance.getEntriesByType("navigation")[0] as any)
+            ?.type === "reload");
+
+      // Only mark offline if NOT refreshing
+      if (!isRefresh) {
+        console.log("🚪 Page closing - marking user offline");
+        isRefreshingRef.current = false;
+
+        // Use synchronous update for reliability
+        updateUserStatus(userId, "offline").catch((err) => {
+          console.error("Failed to update status on unload:", err);
+        });
+      } else {
+        console.log("🔄 Page refreshing - keeping user online");
+        isRefreshingRef.current = true;
       }
     };
 
     window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
-      // Set user offline when component unmounts
-      if (user) {
-        updateUserStatus(user.uid, "offline");
-      }
       window.removeEventListener("beforeunload", handleBeforeUnload);
-      unsubscribe();
     };
   }, []);
 
-  // Handle visibility change (tab switching)
+  // Handle visibility change with smart debouncing
   useEffect(() => {
+    const userId = userIdRef.current;
+    if (!userId) return;
+
     const handleVisibilityChange = async () => {
-      if (user) {
-        if (document.hidden) {
-          // User switched to another tab or minimized window
-          await updateUserStatus(user.uid, "offline");
-        } else {
-          // User came back to the tab
-          await updateUserStatus(user.uid, "online");
+      // Don't handle visibility changes during refresh
+      if (isRefreshingRef.current) {
+        console.log("🔄 Ignoring visibility change during refresh");
+        return;
+      }
+
+      // Clear any existing timer
+      if (offlineTimerRef.current) {
+        clearTimeout(offlineTimerRef.current);
+        offlineTimerRef.current = null;
+      }
+
+      if (document.hidden) {
+        console.log("👁️ Tab hidden - starting offline timer");
+
+        // Wait 2 minutes before marking offline (handles tab switches)
+        offlineTimerRef.current = setTimeout(async () => {
+          if (
+            document.hidden &&
+            userIdRef.current &&
+            !isRefreshingRef.current
+          ) {
+            console.log("⏰ Marking user offline after timeout");
+            await updateUserStatus(userIdRef.current, "offline");
+          }
+        }, 120000); // 2 minutes
+      } else {
+        console.log("👁️ Tab visible - marking user online");
+
+        // User came back to the tab - immediately mark online
+        if (userIdRef.current) {
+          await updateUserStatus(userIdRef.current, "online");
         }
       }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
+    // Initial check
+    if (!document.hidden && userId) {
+      updateUserStatus(userId, "online").catch(console.error);
+    }
+
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+
+      // Clear timer on cleanup
+      if (offlineTimerRef.current) {
+        clearTimeout(offlineTimerRef.current);
+      }
     };
+  }, []);
+
+  // Reset refresh flag after a delay
+  useEffect(() => {
+    if (isRefreshingRef.current) {
+      const timer = setTimeout(() => {
+        console.log("✅ Refresh complete - resetting flag");
+        isRefreshingRef.current = false;
+      }, 3000); // 3 seconds after refresh
+
+      return () => clearTimeout(timer);
+    }
   }, [user]);
 
-  const value: AuthContextType = {
-    user,
-    isAuthenticated: !!user,
-    loading,
-    signup,
-    login,
-    logout,
-    signInAnonymously,
-  };
+  // Memoize context value to prevent unnecessary re-renders
+  const value: AuthContextType = useMemo(
+    () => ({
+      user,
+      currentUser: user,
+      isAuthenticated: !!user,
+      loading,
+      signup,
+      login,
+      logout,
+      signInAnonymously,
+    }),
+    [user, loading, signup, login, logout, signInAnonymously]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
